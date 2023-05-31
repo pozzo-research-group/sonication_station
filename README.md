@@ -1,4 +1,4 @@
-If you're looking for a standard operating procedure, check out the [quickstart](docs/quickstart.md).
+This is a forked version of the original sonication station library that has been modified for other uses. Go to the original machine agency repo if you are trying to install on the actual sonication station. If you're looking for a standard operating procedure, check out the [quickstart](docs/quickstart.md).
 
 ## Intro
 This project wraps a python interface around the existing Duet 3 Socket Interface, turning Jubilee into a plate handling lab automation device for sonication.
