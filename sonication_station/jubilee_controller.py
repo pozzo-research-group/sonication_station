@@ -32,7 +32,7 @@ def machine_is_homed(func):
 class JubileeMotionController(Inpromptu):
     """Driver for sending motion cmds and polling the machine state."""
 
-    LOCALHOST = "127.0.0.1"
+    LOCALHOST = "192.168.1.2"
 
     def __init__(self, address=LOCALHOST, debug=False, simulated=False, reset=False):
         """Start with sane defaults. Setup command and subscribe connections."""
@@ -91,14 +91,31 @@ class JubileeMotionController(Inpromptu):
             print("Connected.")
 
 
-    def gcode(self, cmd: str = "", timeout: float = None):
+    def gcode(self, cmd: str = "", timeout: float = None, response_wait: float = 10):
         """Send a GCode cmd; return the response"""
         if self.debug or self.simulated:
             print(f"sending: {cmd}")
         if self.simulated:
             return None
-        # RRF3 Only
-        response = requests.post(f"http://{self.address}/machine/code", data=f"{cmd}", timeout=timeout).text
+        # Updated to current duet web API. Response needs to be fetched separately and will be ready once the operation is complete on the machine 
+        # we need to watch the 'reply count' and request the new response when it increments
+        old_reply_count = requests.get(f'http://192.168.1.2/rr_model?key=seqs').json()['result']['reply']
+        buffer_response = requests.get(f'http://192.168.1.2/rr_gcode?gcode={cmd}')
+        # wait for a response code to be appended
+        tic = time.time()
+        while True:
+            new_reply_count = requests.get(f'http://192.168.1.2/rr_model?key=seqs').json()['result']['reply']
+            if new_reply_count != old_reply_count:
+                response = requests.get(f'http://192.168.1.2/rr_reply').text
+                break
+            elif time.time() - tic > response_wait:
+                response = None
+                break
+            time.sleep(0.02)
+
+        
+
+
         if self.debug:
             print(f"received: {response}")
             #print(json.dumps(r, sort_keys=True, indent=4, separators=(',', ':')))
@@ -110,8 +127,8 @@ class JubileeMotionController(Inpromptu):
         Example: /sys/tfree0.g
         """
         # RRF3 Only
-        file_contents = requests.get(f"http://{self.address}/machine/file{filepath}",
-                                     timeout=timeout).text
+        file_contents = requests.get(f"http://{self.address}/rr_download?name={filepath}",
+                                     timeout=timeout)
         return file_contents
 
 
@@ -390,7 +407,7 @@ class JubileeMotionController(Inpromptu):
 
 
 if __name__ == "__main__":
-    with JubileeMotionController(simulated=False, debug=False) as jubilee:
+    with JubileeMotionController(simulated=False, debug=True) as jubilee:
         jubilee.cmdloop()
         #jubilee.home_all()
         #jubilee.move_xyz_absolute(z=20)
